@@ -28,11 +28,46 @@ const obtenerInventario = async () => {
 };
 
 const obtenerCitas = async () => {
-  const query = "SELECT FechaHora, Servicio FROM Citas WHERE Estado = 'Confirmada'";
+  const query = "SELECT Id, IdCliente, Servicio, FechaHora, Estado FROM Citas WHERE Estado = 'Confirmada'";
   await registrarConsultaDB('CITAS', query);
   const pool = await sql.connect();
   const result = await pool.request().query(query);
   return result.recordset.map((r) => new Cita(r));
 };
 
-module.exports = { registrarConsultaDB, obtenerInventario, obtenerCitas };
+const obtenerIdClientePorNumero = async (numeroTelefono) => {
+  const pool = await sql.connect();
+  const result = await pool.request()
+    .input('numero', sql.VarChar(15), numeroTelefono)
+    .query('SELECT TOP 1 Id FROM Clientes WHERE NumeroTelefono = @numero');
+  return result.recordset.length > 0 ? result.recordset[0].Id : null;
+};
+
+const existeCitaEnHorario = async (fechaHora) => {
+  const pool = await sql.connect();
+  const result = await pool.request()
+    .input('fechaHora', sql.DateTime, fechaHora)
+    .query("SELECT COUNT(*) AS Total FROM Citas WHERE Estado = 'Confirmada' AND FechaHora = @fechaHora");
+  return result.recordset[0].Total > 0;
+};
+
+const registrarCita = async ({ idCliente, servicio, fechaHora }) => {
+  const query = `INSERT INTO Citas (IdCliente, Servicio, FechaHora) VALUES (${idCliente}, '${servicio}', '${fechaHora.toISOString()}')`;
+  await registrarConsultaDB('CITA_NUEVA', query);
+  const pool = await sql.connect();
+  const result = await pool.request()
+    .input('idCliente', sql.Int, idCliente)
+    .input('servicio', sql.NVarChar(100), servicio)
+    .input('fechaHora', sql.DateTime, fechaHora)
+    .query('INSERT INTO Citas (IdCliente, Servicio, FechaHora) VALUES (@idCliente, @servicio, @fechaHora); SELECT SCOPE_IDENTITY() AS Id;');
+  return result.recordset[0].Id;
+};
+
+module.exports = {
+  registrarConsultaDB,
+  obtenerInventario,
+  obtenerCitas,
+  obtenerIdClientePorNumero,
+  existeCitaEnHorario,
+  registrarCita,
+};

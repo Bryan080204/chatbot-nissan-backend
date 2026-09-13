@@ -1,87 +1,79 @@
-const { sql } = require('../config/database');
-const { registrarClienteSiNuevo } = require('../repositories/userRepository');
-const { registrarMensaje } = require('../repositories/messageRepository');
-const { obtenerInventario, obtenerCitas } = require('../repositories/sqlQueryRepository');
+const { registrarMensaje, registrarRespuestaBot } = require('../repositories/messageRepository');
+const whatsappService = require('../services/whatsappService');
+const aiService = require('../services/aiService'); // O tu servicio de IA correspondiente
 
-const TOKEN_VERIFICACION = process.env.TOKEN_VERIFICACION || 'nissan123';
-const LIMITE_MENSAJE = 500;
+const recibirWebhook = async (req, res) => {
+    // Responder inmediatamente a Meta con 200 OK para evitar bloqueos de reintento
+    res.status(200).send('EVENT_RECEIVED');
+
+    try {
+        const body = req.body;
+
+        if (body.object === 'whatsapp_business_account') {
+            for (const entry of body.entry) {
+                for (const change of entry.changes) {
+                    if (change.value.messages && change.value.messages.length > 0) {
+                        const mensajeObj = change.value.messages[0];
+                        const numeroTelefono = mensajeObj.from;
+                        const textoUsuario = mensajeObj.text ? mensajeObj.text.body : '';
+                        const jsonString = JSON.stringify(body);
+
+                        console.log(`=======================================`);
+                        console.log(`Mensaje Recibido de: ${numeroTelefono}`);
+                        console.log(`Texto: "${textoUsuario}"`);
+
+                        // 1. Guardar el mensaje del usuario en la base de datos
+                        const idMensaje = await registrarMensaje(numeroTelefono, textoUsuario, jsonString);
+
+                        // 2. Clasificar la intención con IA y responder según corresponda (BD o IA)
+                        let respuestaBot = '';
+
+                        if (textoUsuario === '' || textoUsuario.length < 2 || textoUsuario.trim().toLowerCase().includes('asd')) {
+                            console.log("Pregunta que no se responde");
+                            return;
+                        }
+
+                        try {
+                            respuestaBot = await aiService.procesarPreguntaCliente({
+                                numeroCliente: numeroTelefono,
+                                textoCliente: textoUsuario,
+                            });
+                        } catch (error) {
+                            console.error("Error con IA:", error);
+                            respuestaBot = "En este momento tengo problemas para procesar tu solicitud. Intenta de nuevo en unos minutos.";
+                        }
+
+                        // 3. Enviar respuesta por WhatsApp
+                        await whatsappService.enviarMensajeWhatsApp(numeroTelefono, respuestaBot);
+
+                        // 4. Guardar la respuesta del bot vinculada al mensaje del usuario
+                        await registrarRespuestaBot(idMensaje, respuestaBot);
+                        console.log(`Respuesta procesada y guardada exitosamente.`);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error procesando solicitud:", error);
+    }
+};
 
 const verificarWebhook = (req, res) => {
+    const VERIFY_TOKEN = process.env.TOKEN_VERIFICACION || 'TOKEN_SECRETO_NISSAN';
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    if (mode === 'subscribe' && token === TOKEN_VERIFICACION) {
-        res.status(200).send(challenge);
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('WEBHOOK_VERIFIED');
+            res.status(200).send(challenge);
+        } else {
+            res.sendStatus(403);
+        }
     } else {
-        res.sendStatus(403);
+        res.sendStatus(400);
     }
 };
 
-const recibirMensaje = async (req, res) => {
-    res.status(200).send('EVENT_RECEIVED');
-
-    try {
-        const mensajeObj = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-        if (!mensajeObj || !mensajeObj.text?.body) return;
-
-        const numeroCliente = mensajeObj.from;
-        const textoCliente = mensajeObj.text.body.slice(0, LIMITE_MENSAJE);
-
-        console.log(`\n========================================`);
-        console.log(`Mensaje Recibido de: ${numeroCliente}`);
-        console.log(`Texto: "${textoCliente}"`);
-
-        // 1. Registrar cliente (número, nombre y fecha de creación)
-        await registrarClienteSiNuevo(numeroCliente);
-
-        // 2. Guardar el mensaje en la tabla Mensajes
-        await registrarMensaje(numeroCliente, textoCliente, "Pendiente de procesamiento");
-
-        // 3. Analizar intención de forma local sin IA
-        const t = textoCliente.toLowerCase().trim();
-        let categoria = 'IA';
-
-        if (t === '' || t.length < 2 || t.includes('jaja') || t.includes('asd')) {
-            categoria = 'INVALIDO';
-        } else if (t.includes('cita') || t.includes('servicio') || t.includes('horario')) {
-            categoria = 'CITAS';
-        } else if (t.includes('refaccion') || t.includes('pieza') || t.includes('bateria') || t.includes('auto') || t.includes('precio') || t.includes('versa') || t.includes('x-trail') || t.includes('sentra') || t.includes('kicks')) {
-            categoria = 'INVENTARIO';
-        }
-
-        // 4. Estructura switch exigida para clasificar e imprimir en consola
-        switch (categoria) {
-            case 'INVALIDO':
-                console.log("pregunta que no se responde");
-                break;
-
-            case 'CITAS':
-                console.log("pregunta para consultar en base de datos");
-                await obtenerCitas();
-                break;
-
-            case 'INVENTARIO':
-                console.log("pregunta para consultar en base de datos");
-                await obtenerInventario();
-                break;
-
-            case 'IA':
-            default:
-                console.log("pregunta para inteligencia");
-                break;
-        }
-
-        // 5. Pasos de IA y WhatsApp comentados por instrucciones del ingeniero:
-        /*
-        const respuestaBot = "Respuesta simulada";
-        await registrarMensaje(numeroCliente, textoCliente, respuestaBot);
-        await enviarMensajeWhatsApp(numeroCliente, respuestaBot);
-        */
-
-    } catch (error) {
-        console.error("Error procesando solicitud:", error.message);
-    }
-};
-
-module.exports = { verificarWebhook, recibirMensaje };
+module.exports = { recibirWebhook, verificarWebhook };

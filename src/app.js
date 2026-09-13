@@ -8,6 +8,6 @@ app.use(express.json());
 connectDB();
 
 app.get('/webhook', webhookController.verificarWebhook);
-app.post('/webhook', webhookController.recibirMensaje);
+app.post('/webhook', webhookController.recibirWebhook);
 
 module.exports = app;

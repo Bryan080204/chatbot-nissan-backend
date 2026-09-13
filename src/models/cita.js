@@ -1,5 +1,7 @@
 class Cita {
-  constructor({ FechaHora, Servicio, Estado } = {}) {
+  constructor({ Id, IdCliente, FechaHora, Servicio, Estado } = {}) {
+    this.id = Id;
+    this.idCliente = IdCliente;
     this.fechaHora = FechaHora;
     this.servicio = Servicio;
     this.estado = Estado;

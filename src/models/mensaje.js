@@ -1,11 +1,11 @@
 class Mensaje {
-  constructor({ Id, NumeroTelefono, MensajeUsuario, RespuestaBot, Fecha } = {}) {
-    this.id = Id;
-    this.numeroTelefono = NumeroTelefono;
-    this.mensajeUsuario = MensajeUsuario;
-    this.respuestaBot = RespuestaBot;
-    this.fecha = Fecha;
-  }
+    constructor({ Id, NumeroTelefono, TextoMensaje, Fecha, jsonwebhook } = {}) {
+        this.id = Id;
+        this.numeroTelefono = NumeroTelefono;
+        this.textoMensaje = TextoMensaje;
+        this.jsonwebhook = jsonwebhook;
+        this.fecha = Fecha;
+    }
 }
 
 module.exports = Mensaje;

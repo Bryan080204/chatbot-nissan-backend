@@ -4,7 +4,9 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const META_TOKEN = process.env.META_TOKEN;
 
 const enviarMensajeWhatsApp = async (numeroCliente, texto) => {
-    await axios({
+    
+    try{
+await axios({
         method: 'POST',
         url: `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`,
         headers: {
@@ -17,7 +19,10 @@ const enviarMensajeWhatsApp = async (numeroCliente, texto) => {
             type: 'text',
             text: { body: texto }
         }
-    });
+    })
+    }catch (error){
+        console.log(error)
+    }
 };
 
 module.exports = { enviarMensajeWhatsApp };

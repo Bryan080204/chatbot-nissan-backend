@@ -35,6 +35,28 @@ const obtenerCitas = async () => {
   return result.recordset.map((r) => new Cita(r));
 };
 
+const obtenerCitasPorNumeroCliente = async (numeroTelefono) => {
+  const pool = await sql.connect();
+  const result = await pool.request()
+    .input('numero', sql.VarChar(15), numeroTelefono)
+    .query(`
+      SELECT c.Id, c.IdCliente, c.Servicio, c.FechaHora, c.Estado
+      FROM Citas c
+      JOIN Clientes cl ON c.IdCliente = cl.Id
+      WHERE cl.NumeroTelefono = @numero AND c.Estado = 'Confirmada'
+      ORDER BY c.FechaHora ASC
+    `);
+  return result.recordset.map((r) => new Cita(r));
+};
+
+const obtenerCitaPorId = async (idCita) => {
+  const pool = await sql.connect();
+  const result = await pool.request()
+    .input('idCita', sql.Int, idCita)
+    .query('SELECT TOP 1 Id, IdCliente, Servicio, FechaHora, Estado FROM Citas WHERE Id = @idCita');
+  return result.recordset.length > 0 ? new Cita(result.recordset[0]) : null;
+};
+
 const obtenerIdClientePorNumero = async (numeroTelefono) => {
   const pool = await sql.connect();
   const result = await pool.request()
@@ -67,6 +89,8 @@ module.exports = {
   registrarConsultaDB,
   obtenerInventario,
   obtenerCitas,
+  obtenerCitasPorNumeroCliente,
+  obtenerCitaPorId,
   obtenerIdClientePorNumero,
   existeCitaEnHorario,
   registrarCita,

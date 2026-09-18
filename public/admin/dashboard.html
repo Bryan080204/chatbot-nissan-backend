@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | Panel Nissan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/admin/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="/admin/img/nissan-logo.jpg" alt="Nissan">
+        <div class="brand-text">Nissan Bot<small>Panel Admin</small></div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-title">General</div>
+        <button class="nav-item activo" data-seccion="resumen"><i class="fas fa-gauge-high"></i><span>Resumen</span></button>
+        <button class="nav-item" data-seccion="clientes"><i class="fas fa-users"></i><span>Clientes</span></button>
+        <button class="nav-item" data-seccion="conversaciones"><i class="fas fa-comments"></i><span>Conversaciones</span></button>
+
+        <div class="nav-title">Operación</div>
+        <button class="nav-item" data-seccion="citas"><i class="fas fa-calendar-check"></i><span>Citas</span></button>
+        <button class="nav-item" data-seccion="inventario"><i class="fas fa-boxes-stacked"></i><span>Inventario</span></button>
+        <button class="nav-item" data-seccion="historial"><i class="fas fa-file-lines"></i><span>Historial IA</span></button>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="avatar" id="avatarInicial">A</div>
+        <div class="info">
+          <b id="nombreUsuario">Administrador</b>
+          <span>Administrador</span>
+        </div>
+        <button class="logout-btn" id="btnLogout" title="Cerrar sesión"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h2 id="tituloSeccion">Resumen general</h2>
+          <p id="subtituloSeccion">Actividad del chatbot WhatsApp en tiempo real</p>
+        </div>
+        <div class="topbar-acciones">
+          <button class="btn-accion" id="btnRefrescar"><i class="fas fa-rotate"></i> Actualizar</button>
+        </div>
+      </div>
+
+      <!-- ============ RESUMEN ============ -->
+      <section class="seccion activa" id="seccion-resumen">
+        <div class="cards-fila" id="kpisGeneral"></div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-titulo">Mensajes por día</div>
+            <div class="panel-subtitulo">Últimos 7 días</div>
+            <div class="chart-wrap"><canvas id="chartDias"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo">Citas por servicio</div>
+            <div class="panel-subtitulo">Confirmadas</div>
+            <div class="chart-wrap"><canvas id="chartServicios"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-titulo">Actividad reciente</div>
+            <div class="panel-subtitulo">Últimos mensajes de clientes</div>
+            <div id="actividadReciente"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo">Próximas citas</div>
+            <div class="panel-subtitulo">Agendadas y confirmadas</div>
+            <div id="proximasCitas"></div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="grid-template-columns: 1fr 1fr;">
+          <div class="panel">
+            <div class="panel-titulo">Mensajes por hora</div>
+            <div class="panel-subtitulo">Últimos 7 días</div>
+            <div class="chart-wrap"><canvas id="chartHoras"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo">Clientes más activos</div>
+            <div class="panel-subtitulo">Top 5 por mensajes</div>
+            <div id="topClientes"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CLIENTES ============ -->
+      <section class="seccion" id="seccion-clientes">
+        <div class="cards-fila" id="kpisClientes"></div>
+        <div class="tabla-wrap">
+          <table id="tablaClientes">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Registro</th>
+                <th>Mensajes</th>
+                <th>Última actividad</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ CITAS ============ -->
+      <section class="seccion" id="seccion-citas">
+        <div class="cards-fila" id="kpisCitas"></div>
+        <div class="tabla-wrap">
+          <table id="tablaCitas">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Servicio</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ CONVERSACIONES ============ -->
+      <section class="seccion" id="seccion-conversaciones">
+        <div class="conv-lista" id="listaConversaciones"></div>
+      </section>
+
+      <!-- ============ INVENTARIO ============ -->
+      <section class="seccion" id="seccion-inventario">
+        <div class="cards-fila" id="kpisInventario"></div>
+        <div class="tabla-wrap">
+          <table id="tablaInventario">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Descripción</th>
+                <th>Categoría</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ HISTORIAL ============ -->
+      <section class="seccion" id="seccion-historial">
+        <div class="panel" style="max-height: 640px; overflow: auto;">
+          <div class="panel-titulo">Historial de consultas IA y BD</div>
+          <div class="panel-subtitulo">Traza de cada prompt enviado y consulta ejecutada</div>
+          <table id="tablaHistorial" style="min-width: 780px;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tipo</th>
+                <th>Consulta / Prompt</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/admin/js/dashboard.js"></script>
+</body>
+</html>

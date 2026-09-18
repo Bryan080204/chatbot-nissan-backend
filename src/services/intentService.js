@@ -10,7 +10,8 @@ const identificarIntencion = async (textoUsuario) => {
     Analiza la siguiente pregunta del cliente y determina su intención principal.
     
     Categorías permitidas (responde SOLO con una de estas palabras exactas):
-    - citas: Si busca agendar citas, horarios de servicio, mantenimiento o talleres.
+    - citas: Si busca agendar, consultar o verificar sus citas, taller, mantenimiento o servicio.
+      Ejemplos: "quiero una cita", "cuándo me toca ir a la Nissan", "cuándo es mi cita", "cuándo tengo que ir al taller", "tengo que ir a la agencia".
     - precios: Si busca precios, costos, disponibilidad en tienda o stock de productos.
     - info_nissan: Si pregunta sobre especificaciones de autos, marcas, modelos, comparativas o información técnica de vehículos Nissan.
     - general: Si es un saludo, agradecimiento o pregunta que no encaja en las anteriores.
@@ -35,7 +36,7 @@ const identificarIntencion = async (textoUsuario) => {
     console.error("Error clasificando intención con IA:", error);
     // Fallback simple por si falla la IA
     const t = textoUsuario.toLowerCase();
-    if (t.includes('cita') || t.includes('horario')) return 'citas';
+    if (t.includes('cita') || t.includes('horario') || t.includes('me toca') || t.includes('tengo que ir') || t.includes('cuando voy')) return 'citas';
     if (t.includes('precio') || t.includes('costo')) return 'precios';
     return 'general';
   }

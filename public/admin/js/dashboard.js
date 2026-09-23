@@ -81,7 +81,7 @@
     citas: ['Citas', 'Agendamientos de taller registrados'],
     conversaciones: ['Conversaciones', 'Últimos intercambios entre clientes y el bot'],
     inventario: ['Inventario', 'Catálogo de productos y stock'],
-    historial: ['Historial IA', 'Prompts enviados y consultas ejecutadas'],
+    historial: ['Historial de actividad', 'Registro de mensajes, respuestas, consultas IA, consultas a BD y citas'],
   };
 
   document.querySelectorAll('.nav-item').forEach((btn) => {
@@ -141,6 +141,44 @@
         },
       },
     });
+
+    charts.citasDia = new Chart($('#chartCitasDia'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Citas', data: [], backgroundColor: '#7c3aed', borderRadius: 6, maxBarThickness: 26 }] },
+      options: opts(),
+    });
+
+    charts.clientesDia = new Chart($('#chartClientesDia'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'Clientes', data: [], borderColor: '#1e3a8a', backgroundColor: 'rgba(30,58,138,.12)', fill: true, tension: .4, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#1e3a8a' }] },
+      options: opts(),
+    });
+
+    charts.inventario = new Chart($('#chartInventario'), {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: PALETA, borderWidth: 2, borderColor: '#fff' }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#0f172a', font: { size: 11 }, padding: 10, boxWidth: 10 } },
+        },
+      },
+    });
+
+    charts.citasEstado = new Chart($('#chartCitasEstado'), {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: ['#7c3aed', '#d97706', '#dc2626', '#94a3b8'], borderWidth: 2, borderColor: '#fff' }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#0f172a', font: { size: 11 }, padding: 10, boxWidth: 10 } },
+        },
+      },
+    });
   }
 
   /* ---------- Carga por sección ---------- */
@@ -156,6 +194,12 @@
   /* ================= RESUMEN ================= */
   let datosResumen = null;
 
+  async function obtenerKpis() {
+    if (datosResumen && datosResumen.kpis) return datosResumen.kpis;
+    datosResumen = await api('/admin/api/stats');
+    return datosResumen.kpis;
+  }
+
   async function cargarResumen() {
     const btn = $('#btnRefrescar');
     btn.disabled = true;
@@ -165,8 +209,10 @@
       pintarKPIs(datosResumen.kpis);
       pintarGraficas(datosResumen);
       pintarActividad(datosResumen.ultimasActividades, datosResumen.proximasCitas, datosResumen.topClientes);
+      pintarResumenConsultas(datosResumen.kpis);
     } catch (e) {
-      mostrarVacio('#actividadReciente', e.message);
+      const el = $('#actividadReciente');
+      if (el) el.innerHTML = vacioHtml(e.message);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-rotate"></i> Actualizar';
@@ -175,14 +221,61 @@
 
   function pintarKPIs(k) {
     $('#kpisGeneral').innerHTML = [
-      kpiCard({ icono: 'fa-users', label: 'Clientes', valor: fmtNum(k.totalClientes), sub: '+' + fmtNum(k.clientesHoy) + ' hoy', color: '#1e3a8a', fondo: '#eff6ff' }),
+      kpiCard({ icono: 'fa-users', label: 'Clientes', valor: fmtNum(k.totalClientes), sub: '+' + fmtNum(k.clientesHoy) + ' hoy · ' + fmtNum(k.clientesActivosHoy) + ' activos', color: '#1e3a8a', fondo: '#eff6ff' }),
       kpiCard({ icono: 'fa-comment-dots', label: 'Mensajes recibidos', valor: fmtNum(k.totalMensajes), sub: '+' + fmtNum(k.mensajesHoy) + ' hoy', color: '#c3002f', fondo: '#fff1f4' }),
-      kpiCard({ icono: 'fa-calendar-check', label: 'Citas confirmadas', valor: fmtNum(k.totalCitas), sub: fmtNum(k.citasPendientes) + ' pendientes', color: '#16a34a', fondo: '#f0fdf4' }),
-      kpiCard({ icono: 'fa-clock', label: 'Citas próximas', valor: fmtNum(k.citasProximas), sub: fmtNum(k.citasHoy) + ' para hoy', color: '#7c3aed', fondo: '#f5f3ff' }),
+      kpiCard({ icono: 'fa-reply', label: 'Respuestas del bot', valor: fmtNum(k.totalRespuestas), sub: '+' + fmtNum(k.respuestasHoy) + ' hoy', color: '#16a34a', fondo: '#f0fdf4' }),
+      kpiCard({ icono: 'fa-calendar-check', label: 'Citas confirmadas', valor: fmtNum(k.totalCitas), sub: fmtNum(k.citasPendientes) + ' pendientes', color: '#7c3aed', fondo: '#f5f3ff' }),
+      kpiCard({ icono: 'fa-clock', label: 'Citas próximas', valor: fmtNum(k.citasProximas), sub: fmtNum(k.citasHoy) + ' para hoy', color: '#d97706', fondo: '#fffbeb' }),
+      kpiCard({ icono: 'fa-robot', label: 'Consultas a la IA', valor: fmtNum(k.consultasIA), sub: '+' + fmtNum(k.consultasHoy) + ' hoy', color: '#0891b2', fondo: '#ecfeff' }),
       kpiCard({ icono: 'fa-boxes-stacked', label: 'Productos', valor: fmtNum(k.totalProductos), sub: fmtNum(k.stockTotal) + ' unidades', color: '#ea580c', fondo: '#fff7ed' }),
-      kpiCard({ icono: 'fa-money-bill-trend-up', label: 'Valor inventario', valor: fmtMoneda(k.valorInventario).replace(',', ' '), color: '#0891b2', fondo: '#ecfeff' }),
-      kpiCard({ icono: 'fa-robot', label: 'Consultas a la IA', valor: fmtNum(k.consultasIA), sub: '+' + fmtNum(k.consultasHoy) + ' hoy', color: '#d97706', fondo: '#fffbeb' }),
+      kpiCard({ icono: 'fa-money-bill-trend-up', label: 'Valor inventario', valor: fmtMoneda(k.valorInventario).replace(',', ' '), color: '#dc2626', fondo: '#fef2f2' }),
     ];
+
+    $('#kpisHoy').innerHTML = [
+      miniKpi('Hoy', { 'Clientes nuevos': k.clientesHoy, 'Mensajes': k.mensajesHoy, 'Citas': k.citasHoy, 'Respondidas': k.respuestasHoy, 'Consultas IA': k.consultasHoy, 'Sin respuesta': k.mensajesSinRespuesta, 'Clientes activos': k.clientesActivosHoy }),
+    ].join('');
+  }
+
+  function miniKpi(titulo, items) {
+    const chips = Object.entries(items)
+      .filter(([, v]) => v !== undefined)
+      .map(([label, val]) => `<span class="strip-chip"><b>${fmtNum(val)}</b> ${esc(label)}</span>`).join('');
+    return `<div class="strip-card"><div class="strip-titulo"><i class="fas fa-bolt"></i> ${esc(titulo)}</div><div class="strip-chips">${chips}</div></div>`;
+  }
+
+  function pintarResumenConsultas(k) {
+    const el = $('#resumenConsultas');
+    if (!el) return;
+    const pendientes = k.mensajesSinRespuesta || 0;
+    const total = (k.totalMensajes || 0) + (k.totalRespuestas || 0);
+    const tasa = total ? Math.round(((k.totalRespuestas || 0) / total) * 100) : 0;
+    el.innerHTML = `
+      <div class="consultas-grid">
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-message"></i></div>
+          <b>${fmtNum(k.totalMensajes)}</b><span>Mensajes de clientes</span>
+        </div>
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-robot"></i></div>
+          <b>${fmtNum(k.totalRespuestas)}</b><span>Respuestas del bot</span>
+        </div>
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-puzzle-piece"></i></div>
+          <b>${fmtNum(k.consultasIA)}</b><span>Prompts a la IA</span>
+        </div>
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-database"></i></div>
+          <b>${fmtNum(k.consultasHoy)}</b><span>Consultas a BD hoy</span>
+        </div>
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-envelope-open-text"></i></div>
+          <b>${fmtNum(pendientes)}</b><span>Mensajes sin respuesta</span>
+        </div>
+        <div class="consulta-item">
+          <div class="consulta-icono"><i class="fas fa-percent"></i></div>
+          <b>${tasa}%</b><span>Tasa de respuesta</span>
+        </div>
+      </div>`;
   }
 
   function pintarGraficas(datos) {
@@ -211,6 +304,44 @@
     charts.servicios.data.labels = (datos.citasPorServicio || []).map((r) => r.Servicio);
     charts.servicios.data.datasets[0].data = (datos.citasPorServicio || []).map((r) => r.total);
     charts.servicios.update();
+
+    const proximos7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+    });
+    const mapaCitasDia = {};
+    (datos.citasPorDia || []).forEach((r) => {
+      mapaCitasDia[new Date(r.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })] = r.total;
+    });
+    charts.citasDia.data.labels = proximos7;
+    charts.citasDia.data.datasets[0].data = proximos7.map((d) => mapaCitasDia[d] || 0);
+    charts.citasDia.update();
+
+    const mapaClientesDia = {};
+    (datos.clientesPorDia || []).forEach((r) => {
+      mapaClientesDia[new Date(r.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })] = r.total;
+    });
+    charts.clientesDia.data.labels = dias7;
+    charts.clientesDia.data.datasets[0].data = dias7.map((d) => mapaClientesDia[d] || 0);
+    charts.clientesDia.update();
+
+    charts.inventario.data.labels = (datos.inventarioPorCategoria || []).map((r) => r.Categoria);
+    charts.inventario.data.datasets[0].data = (datos.inventarioPorCategoria || []).map((r) => r.unidades);
+    charts.inventario.update();
+
+    const estados = (datos.citasPorEstado || []).map((r) => r.estado);
+    const coloresEstado = (datos.citasPorEstado || []).map((r) => {
+      const e = (r.estado || '').toLowerCase();
+      if (e.includes('confirm')) return '#7c3aed';
+      if (e.includes('pend')) return '#d97706';
+      if (e.includes('cancel')) return '#dc2626';
+      return '#94a3b8';
+    });
+    charts.citasEstado.data.labels = estados;
+    charts.citasEstado.data.datasets[0].backgroundColor = coloresEstado;
+    charts.citasEstado.data.datasets[0].data = (datos.citasPorEstado || []).map((r) => r.total);
+    charts.citasEstado.update();
   }
 
   function pintarActividad(actividad, citas, top) {
@@ -269,12 +400,21 @@
   async function cargarClientes() {
     try {
       const clientes = await api('/admin/api/clientes');
+      const k = await obtenerKpis();
       const totalMensajes = clientes.reduce((a, c) => a + (c.totalMensajes || 0), 0);
 
       $('#kpisClientes').innerHTML = [
         kpiCard({ icono: 'fa-users', label: 'Total clientes', valor: fmtNum(clientes.length), color: '#1e3a8a', fondo: '#eff6ff' }),
         kpiCard({ icono: 'fa-comment-dots', label: 'Mensajes enviados', valor: fmtNum(totalMensajes), color: '#c3002f', fondo: '#fff1f4' }),
       ];
+
+      $('#stripClientes').innerHTML = miniKpi('Clientes', {
+        'Nuevos hoy': k.clientesHoy,
+        'Activos hoy': k.clientesActivosHoy,
+        'Mensajes hoy': k.mensajesHoy,
+        'Respuestas hoy': k.respuestasHoy,
+        'Total mensajes': totalMensajes,
+      });
 
       const cuerpo = $('#tablaClientes tbody');
       if (!clientes.length) {
@@ -298,6 +438,7 @@
   async function cargarCitas() {
     try {
       const citas = await api('/admin/api/citas');
+      const k = await obtenerKpis();
       const confirmadas = citas.filter((c) => (c.Estado || '').toLowerCase().includes('confirm')).length;
       const proximas = citas.filter((c) => (c.Estado || '').toLowerCase().includes('confirm') && new Date(c.FechaHora) >= new Date()).length;
 
@@ -306,6 +447,13 @@
         kpiCard({ icono: 'fa-circle-check', label: 'Confirmadas', valor: fmtNum(confirmadas), color: '#1e3a8a', fondo: '#eff6ff' }),
         kpiCard({ icono: 'fa-hourglass-half', label: 'Próximas', valor: fmtNum(proximas), color: '#7c3aed', fondo: '#f5f3ff' }),
       ];
+
+      $('#stripCitas').innerHTML = miniKpi('Citas', {
+        'Confirmadas': confirmadas,
+        'Próximas': proximas,
+        'Pendientes': k.citasPendientes,
+        'Para hoy': k.citasHoy,
+      });
 
       const cuerpo = $('#tablaCitas tbody');
       if (!citas.length) {
@@ -329,34 +477,7 @@
 
   /* ================= CONVERSACIONES ================= */
   async function cargarConversaciones() {
-    try {
-      const convs = await api('/admin/api/conversaciones');
-      const lista = $('#listaConversaciones');
-      if (!convs.length) {
-        lista.innerHTML = `<div class="panel vacio">${vacioIcono()}Sin conversaciones todavía.</div>`;
-        return;
-      }
-      lista.innerHTML = convs.map((c) => `
-        <div class="conv-item">
-          <div class="conv-cabecera">
-            <div class="conv-cliente">
-              <div class="mini-avatar" style="width:34px;height:34px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">${iniciales(c.Nombre)}</div>
-              <div><b>${esc(c.Nombre)}</b><br><span>${esc(c.NumeroTelefono)}</span></div>
-            </div>
-            <span class="conv-hora">${fmtFechaHora(c.Fecha)}</span>
-          </div>
-          <div class="burbuja cliente">
-            <div class="b-avatar"><i class="fas fa-user"></i></div>
-            <div class="b-contenido">${esc(c.TextoMensaje)}<small>${fmtHora(c.Fecha)}</small></div>
-          </div>
-          <div class="burbuja bot">
-            <div class="b-avatar"><i class="fas fa-robot"></i></div>
-            <div class="b-contenido">${c.TextoRespuesta ? esc(c.TextoRespuesta) : '<div class="b-label">Sin respuesta registrada</div>'}<small>${c.FechaRespuesta ? fmtFechaHora(c.FechaRespuesta) : '—'}</small></div>
-          </div>
-        </div>`).join('');
-    } catch (e) {
-      $('#listaConversaciones').innerHTML = `<div class="panel vacio">${vacioIcono()}${esc(e.message)}</div>`;
-    }
+    await iniciarWasap('Conv');
   }
 
   /* ================= INVENTARIO ================= */
@@ -373,6 +494,16 @@
         kpiCard({ icono: 'fa-money-bill-trend-up', label: 'Valor del inventario', valor: fmtMoneda(valor), color: '#16a34a', fondo: '#f0fdf4' }),
         kpiCard({ icono: 'fa-triangle-exclamation', label: 'Agotados', valor: fmtNum(agotados), color: '#dc2626', fondo: '#fef2f2' }),
       ];
+
+      const todos = productos.length || 0;
+      const stockBajo = productos.filter((p) => (p.Stock || 0) > 0 && (p.Stock || 0) <= 5).length;
+      $('#stripInventario').innerHTML = miniKpi('Inventario', {
+        'Productos': todos,
+        'Unidades': stockTotal,
+        'Agotados': agotados,
+        'Stock bajo': stockBajo,
+        'Valor': fmtMoneda(valor),
+      });
 
       const cuerpo = $('#tablaInventario tbody');
       if (!productos.length) {
@@ -393,31 +524,334 @@
     }
   }
 
-  /* ================= HISTORIAL ================= */
-  async function cargarHistorial() {
-    try {
-      const registros = await api('/admin/api/historial');
-      const cuerpo = $('#tablaHistorial tbody');
-      if (!registros.length) {
-        cuerpo.innerHTML = `<tr><td colspan="4"><div class="vacio">${vacioIcono()}No hay registros aún. La tabla se activa cuando el bot consulta la BD.</div></td></tr>`;
+  /* ================= CHAT WHATSAPP (reutilizable) ================= */
+  function crearWasap(prefijo) {
+    const S = {
+      lateral: '#wasap' + prefijo + 'Lateral',
+      lista: '#wasap' + prefijo + 'Lista',
+      chat: '#wasap' + prefijo + 'Chat',
+      buscar: '#wasap' + prefijo + 'Buscar',
+      btnLimpiar: '#wasap' + prefijo + 'BtnLimpiar',
+      total: '#wasap' + prefijo + 'Total',
+    };
+    const st = { chats: [], seleccionado: null, filtrados: [] };
+
+    async function cargar() {
+      try {
+        const chats = await api('/admin/api/historial-grupos');
+        st.chats = chats;
+        st.seleccionado = null;
+        $(S.lateral).classList.remove('oculto');
+        $(S.chat).classList.add('oculto');
+        $(S.chat).innerHTML = `
+          <div class="wasap-chat-vacio">
+            <i class="fas fa-comments"></i>
+            <h3>Selecciona una conversación</h3>
+            <p>Elige un contacto para ver el historial de mensajes completo.</p>
+          </div>`;
+        pintar();
+      } catch (e) {
+        $(S.lista).innerHTML = `<div class="wasap-aviso">${vacioIcono()}<p>${esc(e.message)}</p></div>`;
+      }
+    }
+
+    function filtrar(term) {
+      const t = (term || '').trim().toLowerCase();
+      if (!t) { st.filtrados = st.chats; return; }
+      st.filtrados = st.chats.filter((c) =>
+        String(c.Nombre || '').toLowerCase().includes(t) ||
+        String(c.NumeroTelefono || '').toLowerCase().includes(t.replace(/[^\d]/g, '').replace(/^52/, '')) ||
+        String(c.NumeroTelefono || '').toLowerCase().includes(t)
+      );
+    }
+
+    function pintar() {
+      const term = $(S.buscar).value;
+      filtrar(term);
+      $(S.total).textContent = st.filtrados.length + (st.filtrados.length === 1 ? ' chat' : ' chats');
+      $(S.btnLimpiar).hidden = !term;
+
+      const lista = $(S.lista);
+      if (!st.filtrados.length) {
+        const hayChats = st.chats.length > 0;
+        lista.innerHTML = `<div class="wasap-aviso">${vacioIcono()}<p>${hayChats ? 'No se encontraron resultados.' : 'Todavía no hay mensajes registrados.'}</p></div>`;
         return;
       }
-      cuerpo.innerHTML = registros.map((r) => {
-        const tipo = (r.TipoConsulta || '').toLowerCase();
-        let clase = 'cat';
-        if (tipo.startsWith('ia_')) clase = 'ia';
-        else if (tipo.includes('cita')) clase = 'cita';
+
+      lista.innerHTML = st.filtrados.map((c) => {
+        const activo = st.seleccionado === c.NumeroTelefono;
+        const inicial = (c.Nombre || '?').trim().charAt(0).toUpperCase();
+        const color = avatarColor(c.NumeroTelefono);
+        const pre = (c.UltimoMensaje || '').replace(/\n/g, ' ');
         return `
-          <tr>
-            <td><span class="numero">#${r.Id}</span></td>
-            <td><span class="badge-tipo ${clase}">${esc(r.TipoConsulta)}</span></td>
-            <td class="query-celda"><code title="${esc(r.QueryEjecutado)}">${esc(r.QueryEjecutado)}</code></td>
-            <td>${fmtFechaHora(r.FechaHora)}</td>
-          </tr>`;
+          <div class="wasap-item ${activo ? 'activo' : ''}" data-numero="${esc(c.NumeroTelefono)}">
+            <div class="wasap-avatar" style="background:${color};">${esc(inicial)}</div>
+            <div class="wasap-item-info">
+              <div class="wasap-item-fila">
+                <b>${esc(c.Nombre)}</b>
+                <span class="wasap-item-fecha">${fmtFechaChat(c.UltimaFecha)}</span>
+              </div>
+              <div class="wasap-item-fila">
+                <span class="wasap-item-prevista"><i class="fas fa-message" style="font-size:10px;"></i> ${esc(pre.slice(0, 60))}</span>
+                <span class="wasap-item-num">${c.TotalMensajes}</span>
+              </div>
+            </div>
+          </div>`;
       }).join('');
-    } catch (e) {
-      $('#tablaHistorial tbody').innerHTML = `<tr><td colspan="4"><div class="vacio">${vacioIcono()}${esc(e.message)}</div></td></tr>`;
+
+      lista.querySelectorAll('.wasap-item').forEach((el) => {
+        el.addEventListener('click', () => abrir(el.dataset.numero));
+      });
     }
+
+    async function abrir(numero) {
+      st.seleccionado = numero;
+      $(S.lateral).classList.add('oculto');
+      $(S.chat).classList.remove('oculto');
+      pintar();
+      const chat = $(S.chat);
+      chat.innerHTML = `<div class="wasap-cargando"><i class="fas fa-spinner fa-spin"></i> Cargando conversación...</div>`;
+      try {
+        const mensajes = await api('/admin/api/historial-mensajes?numero=' + encodeURIComponent(numero));
+        pintarChat(mensajes, chat);
+      } catch (e) {
+        chat.innerHTML = `<div class="wasap-chat-vacio">${vacioIcono()}<p>${esc(e.message)}</p></div>`;
+      }
+    }
+
+    function pintarChat(mensajes, contenedor) {
+      const primero = mensajes[0] || {};
+      const color = avatarColor(primero.NumeroTelefono);
+      contenedor.innerHTML = `
+        <header class="wasap-chat-head">
+          <button type="button" class="wasap-volver"><i class="fas fa-arrow-left"></i></button>
+          <div class="wasap-avatar" style="background:${color};">${esc((primero.Nombre || '?').charAt(0).toUpperCase())}</div>
+          <div class="wasap-chat-head-info">
+            <b>${esc(primero.Nombre || 'Cliente')}</b>
+            <span>${esc(primero.NumeroTelefono || '')} · ${fmtNum(mensajes.length)} mensajes</span>
+          </div>
+        </header>
+        <div class="wasap-mensajes"></div>
+      `;
+
+      contenedor.querySelector('.wasap-volver').addEventListener('click', () => {
+        st.seleccionado = null;
+        $(S.lateral).classList.remove('oculto');
+        $(S.chat).classList.add('oculto');
+        pintar();
+        contenedor.innerHTML = `
+          <div class="wasap-chat-vacio">
+            <i class="fas fa-comments"></i>
+            <h3>Selecciona una conversación</h3>
+            <p>Elige un contacto para ver el historial de mensajes completo.</p>
+          </div>`;
+      });
+
+      const caja = contenedor.querySelector('.wasap-mensajes');
+      if (!mensajes.length) {
+        caja.innerHTML = `<div class="wasap-aviso">${vacioIcono()}<p>No hay mensajes en esta conversación.</p></div>`;
+        return;
+      }
+
+      let diaAnterior = '';
+      caja.innerHTML = mensajes.map((m) => {
+        const d = new Date(m.Fecha);
+        const claveDia = d.toDateString();
+        let separador = '';
+        if (claveDia !== diaAnterior) {
+          const fechaBubble = d.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+          separador = `<div class="wasap-separador">${esc(primerMayus(fechaBubble))}</div>`;
+        }
+        diaAnterior = claveDia;
+
+        const bubs = `
+          <div class="wasap-burbuja cliente">
+            <span class="wasap-burbuja-texto">${esc(m.TextoMensaje)}</span>
+            <span class="wasap-burbuja-hora">${fmtHoraChat(m.Fecha)}</span>
+          </div>`;
+
+        const resBot = (m.TextoRespuesta && String(m.TextoRespuesta).trim())
+          ? `<div class="wasap-burbuja bot">
+               <div class="wasap-b-bot">B</div>
+               <span class="wasap-burbuja-texto">${esc(m.TextoRespuesta)}</span>
+               <span class="wasap-burbuja-hora">${fmtHoraChat(m.FechaRespuesta)}</span>
+             </div>`
+          : `<div class="wasap-burbuja bot">
+               <div class="wasap-b-bot">B</div>
+               <span class="wasap-burbuja-texto wasap-sin-respuesta">Sin respuesta registrada</span>
+             </div>`;
+
+        return separador + bubs + resBot;
+      }).join('');
+
+      caja.scrollTop = caja.scrollHeight;
+    }
+
+    $(S.buscar).addEventListener('input', () => pintar());
+    $(S.btnLimpiar).addEventListener('click', () => {
+      $(S.buscar).value = '';
+      pintar();
+      $(S.buscar).focus();
+    });
+
+    return { cargar };
+  }
+
+  const wasapConversaciones = crearWasap('Conv');
+
+  async function cargarConversaciones() {
+    await wasapConversaciones.cargar();
+  }
+
+  /* ================= HISTORIAL DE ACTIVIDADES ================= */
+  let actividades = [];
+  let filtroActHist = 'todos';
+
+  const TIPO_META = {
+    'Mensaje': { icono: 'fa-message', color: '#1e3a8a', fondo: '#eff6ff' },
+    'Respuesta': { icono: 'fa-robot', color: '#16a34a', fondo: '#f0fdf4' },
+    'Consulta IA': { icono: 'fa-brain', color: '#7c3aed', fondo: '#f5f3ff' },
+    'Consulta BD': { icono: 'fa-database', color: '#0d9488', fondo: '#f0fdfa' },
+    'Cita': { icono: 'fa-calendar-check', color: '#d97706', fondo: '#fffbeb' },
+  };
+
+  async function cargarHistorial() {
+    try {
+      actividades = await api('/admin/api/historial-actividades');
+      filtroActHist = 'todos';
+      $('#actBuscar2').value = '';
+      $('#actBtnLimpiar2').hidden = true;
+      pintarActChips();
+      pintarActividades();
+    } catch (e) {
+      $('#actLista').innerHTML = `<div class="act-aviso">${vacioIcono()}<p>${esc(e.message)}</p></div>`;
+    }
+  }
+
+  function pintarActChips() {
+    const conteo = {};
+    actividades.forEach((a) => { conteo[a.Tipo] = (conteo[a.Tipo] || 0) + 1; });
+    const orden = ['Mensaje', 'Respuesta', 'Consulta IA', 'Consulta BD', 'Cita'];
+    let chips = '';
+    orden.forEach((t) => {
+      if (!conteo[t]) return;
+      const activo = filtroActHist === t ? ' b' : '';
+      const icono = TIPO_META[t].icono;
+      chips += `<span class="strip-chip act-chip${activo}" data-tipo="${esc(t)}"><i class="fas ${icono}"></i> ${esc(tipoLargo(t))} <b>${fmtNum(conteo[t])}</b></span>`;
+    });
+    const total = actividades.length;
+    chips = `<span class="strip-chip act-chip${filtroActHist === 'todos' ? ' b' : ''}" data-tipo="todos"><i class="fas fa-layer-group"></i> Todo <b>${fmtNum(total)}</b></span>` + chips;
+    $('#actChips').innerHTML = chips;
+  }
+
+  function tipoLargo(t) {
+    return { 'Mensaje': 'Mensajes', 'Respuesta': 'Respuestas', 'Consulta IA': 'Consultas IA', 'Consulta BD': 'Consultas BD', 'Cita': 'Citas' }[t] || t;
+  }
+
+  function pintarActividades() {
+    const lista = $('#actLista');
+    const term = ($('#actBuscar2').value || '').trim().toLowerCase();
+    const visibles = actividades.filter((a) => {
+      if (filtroActHist !== 'todos' && a.Tipo !== filtroActHist) return false;
+      if (!term) return true;
+      const extra = `${a.Detalle || ''} ${a.Nombre || ''} ${a.NumeroTelefono || ''} ${a.Extra || ''} ${a.Tipo}`.toLowerCase();
+      return extra.includes(term);
+    });
+
+    if (!visibles.length) {
+      lista.innerHTML = `<div class="act-aviso">${vacioIcono()}<p>${actividades.length ? 'No hay coincidencias.' : 'Todavía no hay actividad registrada.'}</p></div>`;
+      return;
+    }
+
+    const grupos = new Map();
+    visibles.forEach((a) => {
+      const esSistema = (a.NumeroTelefono || '').trim() === '';
+      const key = esSistema ? 'sistema-' + a.Tipo : a.NumeroTelefono;
+      const nombre = esSistema ? tipoLargo(a.Tipo) : (a.Nombre && a.Nombre !== 'Cliente' ? a.Nombre : 'Cliente');
+      if (!grupos.has(key)) grupos.set(key, { nombre, tel: a.NumeroTelefono || '', items: [], sistema: esSistema });
+      grupos.get(key).items.push(a);
+    });
+
+    let html = '';
+    grupos.forEach((g, key) => {
+      const color = g.sistema ? '#334155' : avatarColor(key + g.tel);
+      const inicial = g.sistema ? '<i class="fa-solid fa-server"></i>' : esc((g.nombre || '?').charAt(0).toUpperCase());
+      const itemsHtml = g.items.map((a) => {
+        const meta = TIPO_META[a.Tipo] || TIPO_META['Mensaje'];
+        const detalle = String(a.Detalle || '—').replace(/\n+/g, ' · ');
+        const extra = a.Extra ? `<span class="act-extra">${esc(String(a.Extra))}</span>` : '';
+        return `
+          <div class="act-item">
+            <div class="act-icono" style="background:${meta.fondo};color:${meta.color};"><i class="fas ${meta.icono}"></i></div>
+            <div class="act-info">
+              <div class="act-fila">
+                <span class="act-tipo" style="color:${meta.color};background:${meta.fondo};">${esc(a.Tipo)}</span>
+                <span class="act-fecha">${fmtFechaHora(a.FechaHora)}</span>
+              </div>
+              <div class="act-detalle" title="${esc(detalle)}">${esc(detalle)}</div>
+              ${extra}
+            </div>
+          </div>`;
+      }).join('');
+      html += `
+        <div class="act-grupo ${g.sistema ? 'sistema' : ''}">
+          <div class="act-grupo-head">
+            <div class="wasap-avatar act-g-avatar" style="background:${color};">${inicial}</div>
+            <div class="act-grupo-info">
+              <b>${esc(g.nombre)}</b>
+              ${g.tel ? `<span class="act-tel"><i class="fas fa-phone"></i> ${esc(g.tel)}</span>` : (g.sistema ? '<span class="act-tel"><i class="fas fa-database"></i> Actividad interna del sistema</span>' : '')}
+            </div>
+            <span class="act-grupo-n">${g.items.length} ${g.items.length === 1 ? 'actividad' : 'actividades'}</span>
+          </div>
+          ${itemsHtml}
+        </div>`;
+    });
+
+    lista.innerHTML = html;
+  }
+
+  let timerBuscar = null;
+  $('#actBuscar2').addEventListener('input', (e) => {
+    $('#actBtnLimpiar2').hidden = !(e.target.value || '');
+    clearTimeout(timerBuscar);
+    timerBuscar = setTimeout(() => pintarActividades(), 220);
+  });
+  $('#actBtnLimpiar2').addEventListener('click', () => {
+    $('#actBuscar2').value = '';
+    $('#actBtnLimpiar2').hidden = true;
+    pintarActividades();
+    $('#actBuscar2').focus();
+  });
+  $('#actChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.act-chip');
+    if (!chip) return;
+    filtroActHist = chip.dataset.tipo;
+    pintarActChips();
+    pintarActividades();
+  });
+
+  const fmtFechaChat = (v) => {
+    const d = new Date(v);
+    const hoy = new Date();
+    const ayer = new Date();
+    ayer.setDate(hoy.getDate() - 1);
+    if (d.toDateString() === hoy.toDateString()) return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === ayer.toDateString()) return 'Ayer';
+    if (d.getFullYear() === hoy.getFullYear()) return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const fmtHoraChat = (v) => v ? new Date(v).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  function avatarColor(numero) {
+    const colores = ['#c3002f', '#1e3a8a', '#ea580c', '#16a34a', '#7c3aed', '#0891b2', '#d97706', '#dc2626', '#4f46e5', '#0d9488'];
+    let n = 0;
+    for (const ch of String(numero || '')) n = (n + ch.charCodeAt(0)) % 997;
+    return colores[n % colores.length];
+  }
+
+  function primerMayus(s) {
+    return String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
   }
 
   function vacioHtml(msg) {
@@ -434,6 +868,9 @@
     $('#avatarInicial').textContent = iniciales(usuario);
 
     setupCharts();
-    cargarResumen();
+    const urlSec = new URLSearchParams(location.search).get('seccion');
+    const btnInicial = urlSec ? document.querySelector('.nav-item[data-seccion="' + urlSec + '"]') : null;
+    if (btnInicial) btnInicial.click();
+    else cargarResumen();
   });
 })();

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="/admin/css/style.css">
+  <link rel="stylesheet" href="/admin/css/style.css?v=8">
 </head>
 <body>
   <div class="layout">
@@ -26,7 +26,7 @@
         <div class="nav-title">Operación</div>
         <button class="nav-item" data-seccion="citas"><i class="fas fa-calendar-check"></i><span>Citas</span></button>
         <button class="nav-item" data-seccion="inventario"><i class="fas fa-boxes-stacked"></i><span>Inventario</span></button>
-        <button class="nav-item" data-seccion="historial"><i class="fas fa-file-lines"></i><span>Historial IA</span></button>
+        <button class="nav-item" data-seccion="historial"><i class="fas fa-file-lines"></i><span>Historial</span></button>
       </nav>
 
       <div class="sidebar-user">
@@ -54,42 +54,75 @@
       <section class="seccion activa" id="seccion-resumen">
         <div class="cards-fila" id="kpisGeneral"></div>
 
+        <div class="kpi-strip" id="kpisHoy"></div>
+
         <div class="grid-2">
           <div class="panel">
-            <div class="panel-titulo">Mensajes por día</div>
+            <div class="panel-titulo"><i class="fas fa-chart-line"></i> Mensajes por día</div>
             <div class="panel-subtitulo">Últimos 7 días</div>
             <div class="chart-wrap"><canvas id="chartDias"></canvas></div>
           </div>
           <div class="panel">
-            <div class="panel-titulo">Citas por servicio</div>
+            <div class="panel-titulo"><i class="fas fa-calendar-day"></i> Citas por día</div>
+            <div class="panel-subtitulo">Próximos 7 días</div>
+            <div class="chart-wrap"><canvas id="chartCitasDia"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-clock"></i> Mensajes por hora</div>
+            <div class="panel-subtitulo">Concentración de actividad (7 días)</div>
+            <div class="chart-wrap"><canvas id="chartHoras"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-screwdriver-wrench"></i> Citas por servicio</div>
             <div class="panel-subtitulo">Confirmadas</div>
             <div class="chart-wrap"><canvas id="chartServicios"></canvas></div>
           </div>
         </div>
 
+        <div class="grid-3">
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-user-plus"></i> Nuevos clientes</div>
+            <div class="panel-subtitulo">Registrados en los últimos 7 días</div>
+            <div class="chart-wrap" style="height:175px;"><canvas id="chartClientesDia"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-boxes-stacked"></i> Inventario por categoría</div>
+            <div class="panel-subtitulo">Unidades en stock</div>
+            <div class="chart-wrap" style="height:175px;"><canvas id="chartInventario"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-flag"></i> Estado de citas</div>
+            <div class="panel-subtitulo">Distribución general</div>
+            <div class="chart-wrap" style="height:175px;"><canvas id="chartCitasEstado"></canvas></div>
+          </div>
+        </div>
+
         <div class="grid-2">
           <div class="panel">
-            <div class="panel-titulo">Actividad reciente</div>
+            <div class="panel-titulo"><i class="fas fa-bolt"></i> Actividad reciente</div>
             <div class="panel-subtitulo">Últimos mensajes de clientes</div>
             <div id="actividadReciente"></div>
           </div>
           <div class="panel">
-            <div class="panel-titulo">Próximas citas</div>
+            <div class="panel-titulo"><i class="fas fa-calendar-check"></i> Próximas citas</div>
             <div class="panel-subtitulo">Agendadas y confirmadas</div>
             <div id="proximasCitas"></div>
           </div>
         </div>
 
-        <div class="grid-2" style="grid-template-columns: 1fr 1fr;">
+        <div class="grid-2">
           <div class="panel">
-            <div class="panel-titulo">Mensajes por hora</div>
-            <div class="panel-subtitulo">Últimos 7 días</div>
-            <div class="chart-wrap"><canvas id="chartHoras"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-titulo">Clientes más activos</div>
+            <div class="panel-titulo"><i class="fas fa-trophy"></i> Clientes más activos</div>
             <div class="panel-subtitulo">Top 5 por mensajes</div>
             <div id="topClientes"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-titulo"><i class="fas fa-chart-pie"></i> Resumen general de consultas</div>
+            <div class="panel-subtitulo">Traza de prompts de IA y consultas a BD</div>
+            <div id="resumenConsultas"></div>
           </div>
         </div>
       </section>
@@ -97,6 +130,7 @@
       <!-- ============ CLIENTES ============ -->
       <section class="seccion" id="seccion-clientes">
         <div class="cards-fila" id="kpisClientes"></div>
+        <div class="kpi-strip" id="stripClientes"></div>
         <div class="tabla-wrap">
           <table id="tablaClientes">
             <thead>
@@ -116,6 +150,7 @@
       <!-- ============ CITAS ============ -->
       <section class="seccion" id="seccion-citas">
         <div class="cards-fila" id="kpisCitas"></div>
+        <div class="kpi-strip" id="stripCitas"></div>
         <div class="tabla-wrap">
           <table id="tablaCitas">
             <thead>
@@ -136,12 +171,33 @@
 
       <!-- ============ CONVERSACIONES ============ -->
       <section class="seccion" id="seccion-conversaciones">
-        <div class="conv-lista" id="listaConversaciones"></div>
+        <div class="wasap" id="wasapConvHistorial">
+          <aside class="wasap-lateral" id="wasapConvLateral">
+            <div class="wasap-lateral-head">
+              <h3>Conversaciones</h3>
+              <span class="wasap-total" id="wasapConvTotal">0 chats</span>
+            </div>
+            <div class="wasap-buscador">
+              <i class="fas fa-magnifying-glass"></i>
+              <input type="text" id="wasapConvBuscar" placeholder="Buscar por nombre o teléfono..." autocomplete="off">
+              <button type="button" id="wasapConvBtnLimpiar" class="wasap-clear" hidden><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="wasap-lista" id="wasapConvLista"></div>
+          </aside>
+          <section class="wasap-chat" id="wasapConvChat">
+            <div class="wasap-chat-vacio">
+              <i class="fas fa-comments"></i>
+              <h3>Selecciona una conversación</h3>
+              <p>Elige un contacto para ver el historial de mensajes completo.</p>
+            </div>
+          </section>
+        </div>
       </section>
 
       <!-- ============ INVENTARIO ============ -->
       <section class="seccion" id="seccion-inventario">
         <div class="cards-fila" id="kpisInventario"></div>
+        <div class="kpi-strip" id="stripInventario"></div>
         <div class="tabla-wrap">
           <table id="tablaInventario">
             <thead>
@@ -161,26 +217,23 @@
 
       <!-- ============ HISTORIAL ============ -->
       <section class="seccion" id="seccion-historial">
-        <div class="panel" style="max-height: 640px; overflow: auto;">
-          <div class="panel-titulo">Historial de consultas IA y BD</div>
-          <div class="panel-subtitulo">Traza de cada prompt enviado y consulta ejecutada</div>
-          <table id="tablaHistorial" style="min-width: 780px;">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tipo</th>
-                <th>Consulta / Prompt</th>
-                <th>Fecha</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="actividades">
+          <div class="strip-card act-strip">
+            <span class="strip-titulo"><i class="fas fa-file-lines"></i> Historial</span>
+            <div class="strip-chips" id="actChips"></div>
+            <div class="act-buscador">
+              <i class="fas fa-magnifying-glass"></i>
+              <input type="text" id="actBuscar2" placeholder="Buscar en el historial..." autocomplete="off">
+              <button type="button" id="actBtnLimpiar2" class="wasap-clear" hidden><i class="fas fa-xmark"></i></button>
+            </div>
+          </div>
+          <div class="act-lista" id="actLista"></div>
         </div>
       </section>
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="/admin/js/dashboard.js"></script>
+  <script src="/admin/js/dashboard.js?v=8"></script>
 </body>
 </html>

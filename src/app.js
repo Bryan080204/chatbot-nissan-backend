@@ -12,7 +12,13 @@ connectDB();
 app.get('/webhook', webhookController.verificarWebhook);
 app.post('/webhook', webhookController.recibirWebhook);
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  },
+}));
 app.use('/admin', adminController.router);
 
 module.exports = app;

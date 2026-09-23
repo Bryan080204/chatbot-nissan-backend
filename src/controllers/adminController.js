@@ -97,6 +97,10 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
       valorInventario,
       consultasIA,
       consultasHoy,
+      totalRespuestas,
+      respuestasHoy,
+      clientesActivosHoy,
+      mensajesSinRespuesta,
     ] = await Promise.all([
       contar('SELECT COUNT(*) AS n FROM Clientes'),
       contar('SELECT COUNT(*) AS n FROM Mensajes'),
@@ -111,6 +115,10 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
       contar('SELECT ISNULL(SUM(Precio * Stock), 0) AS n FROM Inventario'),
       contar('SELECT COUNT(*) AS n FROM HistorialConsultasDB'),
       contar("SELECT COUNT(*) AS n FROM HistorialConsultasDB WHERE CONVERT(date, FechaHora) = CONVERT(date, GETDATE())"),
+      contar('SELECT COUNT(*) AS n FROM RespuestaBot'),
+      contar("SELECT COUNT(*) AS n FROM RespuestaBot WHERE CONVERT(date, FechaRespuesta) = CONVERT(date, GETDATE())"),
+      contar("SELECT COUNT(DISTINCT IdCliente) AS n FROM Mensajes WHERE CONVERT(date, Fecha) = CONVERT(date, GETDATE())"),
+      contar(`SELECT COUNT(*) AS n FROM Mensajes m LEFT JOIN RespuestaBot rb ON m.Id = rb.IdMensaje WHERE rb.Id IS NULL`),
     ]);
 
     const mensajesPorDia = await consultaSegura(`
@@ -137,6 +145,46 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
       ORDER BY total DESC
     `);
 
+    const citasPorDia = await consultaSegura(`
+      SELECT CONVERT(date, FechaHora) AS fecha, COUNT(*) AS total
+      FROM Citas
+      WHERE Estado = 'Confirmada'
+        AND FechaHora >= CONVERT(date, GETDATE())
+        AND FechaHora < DATEADD(day, 7, CONVERT(date, GETDATE()))
+      GROUP BY CONVERT(date, FechaHora)
+      ORDER BY fecha ASC
+    `);
+
+    const clientesPorDia = await consultaSegura(`
+      SELECT CONVERT(date, FechaRegistro) AS fecha, COUNT(*) AS total
+      FROM Clientes
+      WHERE FechaRegistro >= DATEADD(day, -6, CONVERT(date, GETDATE()))
+      GROUP BY CONVERT(date, FechaRegistro)
+      ORDER BY fecha ASC
+    `);
+
+    const citasPorEstado = await consultaSegura(`
+      SELECT ISNULL(NULLIF(Estado, ''), 'Pendiente') AS estado, COUNT(*) AS total
+      FROM Citas
+      GROUP BY Estado
+      ORDER BY total DESC
+    `);
+
+    const inventarioPorCategoria = await consultaSegura(`
+      SELECT Categoria, COUNT(*) AS productos, ISNULL(SUM(Stock), 0) AS unidades
+      FROM Inventario
+      GROUP BY Categoria
+      ORDER BY unidades DESC
+    `);
+
+    const clientesPorHora = await consultaSegura(`
+      SELECT DATEPART(hour, m.Fecha) AS hora, COUNT(DISTINCT m.IdCliente) AS total
+      FROM Mensajes m
+      WHERE m.Fecha >= DATEADD(day, -6, GETDATE())
+      GROUP BY DATEPART(hour, m.Fecha)
+      ORDER BY hora ASC
+    `);
+
     const topClientes = await consultaSegura(`
       SELECT TOP 5 ISNULL(NULLIF(cl.Nombre, ''), 'Cliente') AS nombre,
              cl.NumeroTelefono, COUNT(m.Id) AS mensajes
@@ -156,7 +204,7 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
     `);
 
     const ultimasActividades = await consultaSegura(`
-      SELECT TOP 10 m.Id, m.TextoMensaje, m.Fecha,
+      SELECT TOP 8 m.Id, m.TextoMensaje, m.Fecha,
              cl.NumeroTelefono, ISNULL(cl.Nombre, 'Sin nombre') AS Nombre
       FROM Mensajes m
       LEFT JOIN Clientes cl ON m.IdCliente = cl.Id
@@ -178,10 +226,19 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
         valorInventario,
         consultasIA,
         consultasHoy,
+        totalRespuestas,
+        respuestasHoy,
+        clientesActivosHoy,
+        mensajesSinRespuesta,
       },
       mensajesPorDia,
       mensajesPorHora,
       citasPorServicio,
+      citasPorDia,
+      clientesPorDia,
+      citasPorEstado,
+      inventarioPorCategoria,
+      clientesPorHora,
       topClientes,
       proximasCitas,
       ultimasActividades,
@@ -263,6 +320,131 @@ router.get('/api/historial', requiereAuth, async (req, res) => {
     res.json(filas);
   } catch (error) {
     res.json([]);
+  }
+});
+
+router.get('/api/historial-grupos', requiereAuth, async (req, res) => {
+  try {
+    const filas = await consultaSegura(`
+      SELECT gr.IdCliente,
+             gr.NumeroTelefono,
+             ISNULL(NULLIF(gr.Nombre, ''), 'Cliente') AS Nombre,
+             gr.TotalMensajes,
+             gr.UltimaFecha,
+             (SELECT TOP 1 m2.TextoMensaje
+              FROM Mensajes m2
+              LEFT JOIN Clientes c2 ON m2.IdCliente = c2.Id
+              WHERE c2.NumeroTelefono = gr.NumeroTelefono
+              ORDER BY m2.Fecha DESC) AS UltimoMensaje
+      FROM (
+        SELECT c.NumeroTelefono,
+               (SELECT TOP 1 c1.Id
+                FROM Clientes c1
+                INNER JOIN Mensajes m1 ON m1.IdCliente = c1.Id
+                WHERE c1.NumeroTelefono = c.NumeroTelefono
+                ORDER BY m1.Fecha DESC, c1.Id DESC) AS IdCliente,
+               (SELECT TOP 1 c4.Nombre
+                FROM Clientes c4
+                INNER JOIN Mensajes m4 ON m4.IdCliente = c4.Id
+                WHERE c4.NumeroTelefono = c.NumeroTelefono
+                ORDER BY m4.Fecha DESC, c4.Id DESC) AS Nombre,
+               COUNT(m.Id) AS TotalMensajes,
+               MAX(m.Fecha) AS UltimaFecha
+        FROM Clientes c
+        INNER JOIN Mensajes m ON m.IdCliente = c.Id
+        WHERE c.NumeroTelefono IS NOT NULL AND c.NumeroTelefono <> ''
+        GROUP BY c.NumeroTelefono
+      ) gr
+      ORDER BY gr.UltimaFecha DESC
+    `);
+    res.json(filas);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/api/historial-mensajes', requiereAuth, async (req, res) => {
+  const { idCliente, numero } = req.query;
+  const porId = idCliente && !numero;
+  if (!porId && !numero) return res.status(400).json({ error: 'Se requiere idCliente o numero' });
+  try {
+    const pool = await sql.connect();
+    const request = pool.request();
+    let where;
+    if (porId) {
+      request.input('id', sql.Int, idCliente);
+      where = 'WHERE m.IdCliente = @id';
+    } else {
+      request.input('numero', sql.NVarChar, String(numero).trim());
+      where = 'WHERE ISNULL(cl.NumeroTelefono, \'\') = @numero';
+    }
+    const resultado = await request.query(`
+      SELECT m.Id AS IdMensaje, m.TextoMensaje, m.Fecha,
+             rb.TextoRespuesta, rb.FechaRespuesta,
+             ISNULL(NULLIF(cl.Nombre, ''), 'Cliente') AS Nombre,
+             cl.NumeroTelefono
+      FROM Mensajes m
+      LEFT JOIN RespuestaBot rb ON m.Id = rb.IdMensaje
+      LEFT JOIN Clientes cl ON m.IdCliente = cl.Id
+      ${where}
+      ORDER BY m.Fecha ASC
+    `);
+    res.json(resultado.recordset);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/api/historial-actividades', requiereAuth, async (req, res) => {
+  try {
+    const filas = await consultaSegura(`
+      SELECT TOP 300 Id, Tipo, Detalle, FechaHora, Nombre, NumeroTelefono, Extra
+      FROM (
+        SELECT m.Id AS Id,
+               'Mensaje' AS Tipo,
+               m.TextoMensaje AS Detalle,
+               m.Fecha AS FechaHora,
+               ISNULL(NULLIF(cl.Nombre, ''), 'Cliente') AS Nombre,
+               cl.NumeroTelefono AS NumeroTelefono,
+               NULL AS Extra
+        FROM Mensajes m
+        LEFT JOIN Clientes cl ON m.IdCliente = cl.Id
+        UNION ALL
+        SELECT rb.Id,
+               'Respuesta',
+               rb.TextoRespuesta,
+               rb.FechaRespuesta,
+               ISNULL(NULLIF(cl.Nombre, ''), 'Cliente'),
+               cl.NumeroTelefono,
+               CONCAT('Estado: ', ISNULL(rb.EstadoEnvio, 'Pendiente'))
+        FROM RespuestaBot rb
+        LEFT JOIN Mensajes m ON rb.IdMensaje = m.Id
+        LEFT JOIN Clientes cl ON m.IdCliente = cl.Id
+        UNION ALL
+        SELECT h.Id,
+               CASE WHEN h.TipoConsulta LIKE '%ia%' OR h.TipoConsulta LIKE '%IA%' THEN 'Consulta IA' ELSE 'Consulta BD' END,
+               h.QueryEjecutado,
+               h.FechaHora,
+               NULL,
+               NULL,
+               h.TipoConsulta
+        FROM HistorialConsultasDB h
+        UNION ALL
+        SELECT ct.Id,
+               'Cita',
+               CONCAT(ISNULL(ct.Servicio, 'Servicio'), ' — ', ISNULL(ct.Estado, 'Pendiente')),
+               ct.FechaHora,
+               ISNULL(NULLIF(cl.Nombre, ''), 'Cliente'),
+               cl.NumeroTelefono,
+               CONCAT('Cita #', ct.Id)
+        FROM Citas ct
+        LEFT JOIN Clientes cl ON ct.IdCliente = cl.Id
+      ) t
+      ORDER BY FechaHora DESC
+    `);
+    res.json(filas);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Dashboard de monitoreo del chatbot de atención al cliente de Nissan" />
+    <title>Nissan · Monitor de Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <template id="tpl-login">
+      <div class="login-contenedor">
+        <section class="bienvenida">
+          <div class="bienvenida-logo-wrap">
+            <img src="/img/nissan-logo.jpg" alt="Nissan" class="bienvenida-logo">
+          </div>
+          <h1>Bienvenido<br>de nuevo</h1>
+          <p>En Nissan creemos en la innovación, la calidad y en las personas que se atreven a llegar más lejos.</p>
+          <p>Tu próxima aventura comienza aquí.</p>
+        </section>
+        <section class="login">
+          <h2>Iniciar sesión</h2>
+          <form id="formLogin" autocomplete="off" novalidate>
+            <label for="correo">Usuario</label>
+            <input type="text" id="correo" placeholder="Ingresa tu usuario" autocomplete="username">
+
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" placeholder="Ingresa tu contraseña" autocomplete="current-password">
+
+            <div class="recordar">
+              <input type="checkbox" id="recordarme">
+              <label for="recordarme">Recordarme</label>
+            </div>
+
+            <button type="submit" id="btnLogin">
+              <span class="btn-text">Iniciar sesión</span>
+              <span class="spinner" hidden></span>
+            </button>
+
+            <a href="#" onclick="return false;">¿Olvidaste tu contraseña?</a>
+
+            <p id="mensaje"></p>
+          </form>
+        </section>
+      </div>
+    </template>
+
+    <template id="tpl-dashboard">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-brand">
+            <img src="/img/nissan-logo.jpg" alt="Nissan">
+            <div class="brand-text">Nissan Bot<small>Panel Admin</small></div>
+          </div>
+
+          <nav class="sidebar-nav">
+            <div class="nav-title">General</div>
+            <button class="nav-item activo" data-seccion="resumen"><i class="fas fa-gauge-high"></i><span>Resumen</span></button>
+            <button class="nav-item" data-seccion="clientes"><i class="fas fa-users"></i><span>Clientes</span></button>
+            <button class="nav-item" data-seccion="conversaciones"><i class="fas fa-comments"></i><span>Conversaciones</span></button>
+
+            <div class="nav-title">Operación</div>
+            <button class="nav-item" data-seccion="citas"><i class="fas fa-calendar-check"></i><span>Citas</span></button>
+            <button class="nav-item" data-seccion="inventario"><i class="fas fa-boxes-stacked"></i><span>Inventario</span></button>
+            <button class="nav-item" data-seccion="historial"><i class="fas fa-file-lines"></i><span>Historial</span></button>
+          </nav>
+
+          <div class="sidebar-user">
+            <div class="avatar" id="avatarInicial">A</div>
+            <div class="info">
+              <b id="nombreUsuario">Administrador</b>
+              <span>Administrador</span>
+            </div>
+            <button class="logout-btn" id="btnLogout" title="Cerrar sesión"><i class="fas fa-sign-out-alt"></i></button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <div class="topbar">
+            <div>
+              <h2 id="tituloSeccion">Resumen general</h2>
+              <p id="subtituloSeccion">Actividad del chatbot WhatsApp en tiempo real</p>
+            </div>
+            <div class="topbar-acciones">
+              <button class="btn-accion" id="btnRefrescar"><i class="fas fa-rotate"></i> Actualizar</button>
+            </div>
+          </div>
+
+          <!-- ============ RESUMEN ============ -->
+          <section class="seccion activa" id="seccion-resumen">
+            <div class="cards-fila" id="kpisGeneral"></div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-chart-line"></i> Mensajes por día</div>
+                <div class="panel-subtitulo">Últimos 7 días</div>
+                <div class="chart-wrap"><canvas id="chartDias"></canvas></div>
+              </div>
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-clock"></i> Mensajes por hora</div>
+                <div class="panel-subtitulo">Concentración de actividad (7 días)</div>
+                <div class="chart-wrap"><canvas id="chartHoras"></canvas></div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-screwdriver-wrench"></i> Citas por servicio</div>
+                <div class="panel-subtitulo">Confirmadas</div>
+                <div class="chart-wrap"><canvas id="chartServicios"></canvas></div>
+              </div>
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-bolt"></i> Actividad reciente</div>
+                <div class="panel-subtitulo">Últimos mensajes de clientes</div>
+                <div id="actividadReciente"></div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-calendar-check"></i> Próximas citas</div>
+                <div class="panel-subtitulo">Agendadas y confirmadas</div>
+                <div id="proximasCitas"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-titulo"><i class="fas fa-trophy"></i> Clientes más activos</div>
+                <div class="panel-subtitulo">Top 5 por mensajes</div>
+                <div id="topClientes"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ CLIENTES ============ -->
+          <section class="seccion" id="seccion-clientes">
+            <div class="cards-fila" id="kpisClientes"></div>
+            <div class="tabla-toolbar">
+              <div class="busqueda">
+                <i class="fas fa-magnifying-glass"></i>
+                <input type="text" id="buscarCliente" placeholder="Buscar por nombre o teléfono..." autocomplete="off">
+                <button type="button" id="limpiarBusqueda" hidden><i class="fas fa-xmark"></i></button>
+              </div>
+              <div class="tabla-acciones">
+                <span class="contador" id="clientesCount">0 clientes</span>
+                <select id="filtroClientes">
+                  <option value="todos">Todos</option>
+                  <option value="activos">Más activos</option>
+                  <option value="nuevos">Recientes</option>
+                </select>
+              </div>
+            </div>
+            <div class="tabla-wrap">
+              <table id="tablaClientes">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>WhatsApp</th>
+                    <th>Registro</th>
+                    <th>Mensajes</th>
+                    <th>Última actividad</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ============ CITAS ============ -->
+          <section class="seccion" id="seccion-citas">
+            <div class="cards-fila" id="kpisCitas"></div>
+            <div class="tabla-toolbar">
+              <div class="busqueda">
+                <i class="fas fa-magnifying-glass"></i>
+                <input type="text" id="buscarCita" placeholder="Buscar por cliente, teléfono o servicio..." autocomplete="off">
+                <button type="button" id="limpiarBusquedaCita" hidden><i class="fas fa-xmark"></i></button>
+              </div>
+              <div class="tabla-acciones">
+                <span class="contador" id="citasCount">0 citas</span>
+                <select id="filtroCitas">
+                  <option value="todas">Todas</option>
+                  <option value="confirmadas">Confirmadas</option>
+                  <option value="pendientes">Pendientes</option>
+                  <option value="canceladas">Canceladas</option>
+                </select>
+              </div>
+            </div>
+            <div class="tabla-wrap">
+              <table id="tablaCitas">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>WhatsApp</th>
+                    <th>Servicio</th>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ============ CONVERSACIONES ============ -->
+          <section class="seccion" id="seccion-conversaciones">
+            <div class="wasap" id="wasapConvHistorial">
+              <aside class="wasap-lateral" id="wasapConvLateral">
+                <div class="wasap-lateral-head">
+                  <h3>Conversaciones</h3>
+                  <span class="wasap-total" id="wasapConvTotal">0 chats</span>
+                </div>
+                <div class="wasap-buscador">
+                  <i class="fas fa-magnifying-glass"></i>
+                  <input type="text" id="wasapConvBuscar" placeholder="Buscar por nombre o teléfono..." autocomplete="off">
+                  <button type="button" id="wasapConvBtnLimpiar" class="wasap-clear" hidden><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="wasap-lista" id="wasapConvLista"></div>
+              </aside>
+              <section class="wasap-chat" id="wasapConvChat">
+                <div class="wasap-chat-cuerpo" id="wasapConvCuerpo">
+                  <div class="wasap-chat-vacio">
+                    <i class="fas fa-comments"></i>
+                    <h3>Selecciona una conversación</h3>
+                    <p>Elige un contacto para ver el historial de mensajes completo.</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ============ INVENTARIO ============ -->
+          <section class="seccion" id="seccion-inventario">
+            <div class="cards-fila" id="kpisInventario"></div>
+            <div class="tabla-toolbar">
+              <div class="busqueda">
+                <i class="fas fa-magnifying-glass"></i>
+                <input type="text" id="buscarProducto" placeholder="Buscar producto, descripción o categoría..." autocomplete="off">
+                <button type="button" id="limpiarBusquedaProducto" hidden><i class="fas fa-xmark"></i></button>
+              </div>
+              <div class="tabla-acciones">
+                <span class="contador" id="productosCount">0 productos</span>
+                <select id="filtroInventario">
+                  <option value="todos">Todos</option>
+                  <option value="disponibles">Con stock</option>
+                  <option value="bajos">Stock bajo</option>
+                  <option value="agotados">Agotados</option>
+                </select>
+              </div>
+            </div>
+            <div class="tabla-wrap">
+              <table id="tablaInventario">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ============ HISTORIAL ============ -->
+          <section class="seccion" id="seccion-historial">
+            <div class="wasap" id="wasapHistHistorial">
+              <aside class="wasap-lateral" id="wasapHistLateral">
+                <div class="wasap-lateral-head">
+                  <h3>Historial por cliente</h3>
+                  <span class="wasap-total" id="wasapHistTotal">0 chats</span>
+                </div>
+                <div class="wasap-buscador">
+                  <i class="fas fa-magnifying-glass"></i>
+                  <input type="text" id="wasapHistBuscar" placeholder="Buscar por nombre, teléfono o tema..." autocomplete="off">
+                  <button type="button" id="wasapHistBtnLimpiar" class="wasap-clear" hidden><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="wasap-lista" id="wasapHistLista"></div>
+              </aside>
+              <section class="wasap-chat" id="wasapHistChat">
+                <div class="wasap-tipos" id="wasapHistTipos"></div>
+                <div class="wasap-chat-cuerpo" id="wasapHistCuerpo">
+                  <div class="wasap-chat-vacio">
+                    <i class="fas fa-folder-open"></i>
+                    <h3>Selecciona un chat</h3>
+                    <p>Elige un cliente para ver toda su actividad: mensajes, respuestas, consultas IA/BD y citas.</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </template>
+
+    <script>
+      if (window.location.protocol === 'file:') {
+        document.getElementById('app').innerHTML =
+          '<div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f5f7;font-family:Segoe UI,Roboto,Arial,sans-serif;color:#1c1e22;padding:24px;text-align:center">' +
+          '<div style="max-width:480px;background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:36px;box-shadow:0 12px 36px rgba(16,18,22,.12)">' +
+          '<p style="font-size:22px;font-weight:700;margin:0 0 10px">No puedes abrir el dashboard con doble clic.</p>' +
+          '<p style="font-size:14px;color:#5b616b;line-height:1.6;margin:0 0 20px">El panel se sirve con Vite y consulta al backend. En una terminal ejecuta <b>npm start</b> (backend en :3000) y en otra <b>npm run dev</b> (frontend en :5174).</p>' +
+          '<code style="display:block;background:#111214;color:#fff;border-radius:8px;padding:14px;font-size:14px;margin:0 0 20px">npm run dev</code>' +
+          '<p style="font-size:13px;color:#5b616b;margin:0">Después abre en tu navegador: <b style="color:#c3002f">http://localhost:5174</b></p>' +
+          '</div></div>'
+      }
+    </script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

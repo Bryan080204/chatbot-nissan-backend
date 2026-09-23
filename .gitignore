@@ -3,3 +3,4 @@ chat_memory.db
 npx
 .env
 *.log
+dist/

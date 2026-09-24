@@ -1,9 +1,37 @@
 const { geminiConfig, generateContentConReintentos } = require('../config/gemini');
 
+const detectarIntencionLocal = (textoUsuario) => {
+  const t = (textoUsuario || '').toLowerCase().replace(/\bq\b/g, 'qué');
+
+  if (
+    /\b(cita|citas)\b/.test(t) ||
+    /\b(taller|mantenimiento|afinaci[oó]n|servicio)\b/.test(t) ||
+    /\b(agendar|reservar|separar)\b/.test(t) ||
+    /\b(horario|horarios)\b/.test(t) ||
+    /\bme toca\b/.test(t) ||
+    /\btengo que ir\b/.test(t)
+  ) return 'citas';
+
+  if (
+    /\b(precio|precios|costo|costos|cu[aá]nto|cu[áa]nto cuesta|cuesta|vale|pago|ahorro|descuento)\b/.test(t) ||
+    /\b(stock|existencias|disponible|agotado|refacci[oó]n|refacciones|pieza|piezas)\b/.test(t)
+  ) return 'precios';
+
+  if (
+    /\b(modelo|modelos|especificaciones|motor|transmisi[oó]n|km|rendimiento|hp|caballos|versi[oó]n)\b/.test(t) ||
+    /\b(versa|sentra|kicks|tsuru|altima|frontier|np300|march|gt-r|leaf|ariya|xterra|pathfinder|murano)\b/.test(t)
+  ) return 'info_nissan';
+
+  return 'general';
+};
+
 const identificarIntencion = async (textoUsuario) => {
   if (!textoUsuario || textoUsuario.trim().length < 2) {
     return 'GENERAL';
   }
+
+  const local = detectarIntencionLocal(textoUsuario);
+  if (local !== 'general') return local;
 
   const promptClasificacion = `
     Eres un sistema de clasificación de intenciones para una agencia de autos Nissan.

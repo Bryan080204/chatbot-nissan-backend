@@ -193,6 +193,13 @@ const extraerNumeroCitaMencionado = (texto) => {
 const estadoEsperaCita = new Map();
 const EXPIRACION_ESPERA_CITA_MS = 10 * 60 * 1000;
 
+setInterval(() => {
+  const ahora = Date.now();
+  for (const [numero, valor] of estadoEsperaCita) {
+    if (ahora - valor.ts > EXPIRACION_ESPERA_CITA_MS) estadoEsperaCita.delete(numero);
+  }
+}, 5 * 60 * 1000);
+
 const formatearPreguntaConfirmacionCita = () => [
   'Entiendo que quieres saber cuándo ir a Nissan. 🤔',
   '¿Te refieres a consultar tu cita agendada?',

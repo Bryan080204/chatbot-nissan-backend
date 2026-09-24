@@ -1,6 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
-const { sql } = require('../config/database');
+const { sql, obtenerRequest } = require('../config/database');
 
 const router = express.Router();
 
@@ -9,11 +9,31 @@ const CONTRASENA_ADMIN = process.env.ADMIN_PASS || '22620047';
 const EXPIRACION_TOKEN_MS = 12 * 60 * 60 * 1000;
 
 const tokens = new Map();
+const intentosLogin = new Map();
+const MAX_INTENTOS_LOGIN = 5;
+const VENTANA_LOGIN_MS = 60 * 1000;
 
 function limpiarTokens() {
   for (const [token, datos] of tokens) {
     if (datos.expira < Date.now()) tokens.delete(token);
   }
+}
+
+function loginPermitido(ip) {
+  const datos = intentosLogin.get(ip);
+  if (!datos) return true;
+  if (Date.now() - datos.ts > VENTANA_LOGIN_MS) {
+    intentosLogin.delete(ip);
+    return true;
+  }
+  return datos.conteo < MAX_INTENTOS_LOGIN;
+}
+
+function registrarIntentoLogin(ip) {
+  const datos = intentosLogin.get(ip) || { conteo: 0, ts: Date.now() };
+  datos.conteo++;
+  datos.ts = Date.now();
+  intentosLogin.set(ip, datos);
 }
 
 function generarToken(usuario) {
@@ -35,8 +55,8 @@ function requiereAuth(req, res, next) {
 }
 
 async function consulta(querySql) {
-  const pool = await sql.connect();
-  const resultado = await pool.request().query(querySql);
+  const request = await obtenerRequest();
+  const resultado = await request.query(querySql);
   return resultado.recordset;
 }
 
@@ -69,10 +89,19 @@ router.get('/dashboard', (req, res) => res.redirect('/admin/dashboard.html'));
 
 router.post('/api/login', (req, res) => {
   const { usuario, contrasena } = req.body || {};
+  const ip = req.ip || req.socket.remoteAddress || 'desconocida';
+
   limpiarTokens();
+  if (!loginPermitido(ip)) {
+    return res.status(429).json({ error: 'Demasiados intentos. Espera un minuto antes de reintentar.' });
+  }
+
   if (usuario === USUARIO_ADMIN && contrasena === CONTRASENA_ADMIN) {
+    intentosLogin.delete(ip);
     return res.json({ token: generarToken(usuario), usuario });
   }
+
+  registrarIntentoLogin(ip);
   return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 });
 
@@ -81,7 +110,24 @@ router.post('/api/logout', requiereAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+const TTL_STATS_MS = 15000;
+let cacheStats = null;
+let cacheStatsTs = 0;
+let promesaStats = null;
+
 router.get('/api/stats', requiereAuth, async (req, res) => {
+  if (cacheStats && Date.now() - cacheStatsTs < TTL_STATS_MS) {
+    return res.json(cacheStats);
+  }
+  if (promesaStats) {
+    try {
+      return res.json(await promesaStats);
+    } catch (error) {
+      return res.status(500).json({ error: 'Error al obtener estadísticas' });
+    }
+  }
+
+  promesaStats = (async () => {
   try {
     const [
       totalClientes,
@@ -211,7 +257,7 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
       ORDER BY m.Fecha DESC
     `);
 
-    res.json({
+    const resultado = {
       kpis: {
         totalClientes,
         totalMensajes,
@@ -242,10 +288,22 @@ router.get('/api/stats', requiereAuth, async (req, res) => {
       topClientes,
       proximasCitas,
       ultimasActividades,
-    });
+    };
+    cacheStats = resultado;
+    cacheStatsTs = Date.now();
+    return resultado;
   } catch (error) {
     console.error('Error obteniendo stats:', error);
-    res.status(500).json({ error: 'Error al obtener estadísticas' });
+    throw error;
+  }
+  })();
+
+  try {
+    return res.json(await promesaStats);
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al obtener estadísticas' });
+  } finally {
+    promesaStats = null;
   }
 });
 
@@ -368,8 +426,7 @@ router.get('/api/historial-mensajes', requiereAuth, async (req, res) => {
   const porId = idCliente && !numero;
   if (!porId && !numero) return res.status(400).json({ error: 'Se requiere idCliente o numero' });
   try {
-    const pool = await sql.connect();
-    const request = pool.request();
+    const request = await obtenerRequest();
     let where;
     if (porId) {
       request.input('id', sql.Int, idCliente);

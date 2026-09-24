@@ -71,12 +71,12 @@ const obtenerInventario = async (usarCache = true) => {
 };
 
 const obtenerCitas = async () => {
-  registrarConsultaDB('CITAS', "SELECT TOP 30 Id, IdCliente, Servicio, FechaHora, Estado FROM Citas WHERE Estado = 'Confirmada' AND FechaHora >= GETDATE()");
+  registrarConsultaDB('CITAS', "SELECT TOP 30 Id, IdCliente, Servicio, FechaHora, Estado FROM Citas WHERE Estado = 'Confirmada'");
   const request = await obtenerRequest();
   const result = await request.query(`
     SELECT TOP 30 Id, IdCliente, Servicio, FechaHora, Estado
     FROM Citas
-    WHERE Estado = 'Confirmada' AND FechaHora >= GETDATE()
+    WHERE Estado = 'Confirmada'
     ORDER BY FechaHora ASC
   `);
   return result.recordset.map((r) => new Cita(r));
